@@ -214,6 +214,8 @@ Function Install-Apps{
             Install-Teams
             Install-7Zip
         }
+        "374" {
+        }
 
         default {
             Write-Host "Site not set up in Global Functions"
@@ -277,8 +279,8 @@ Function Connect-Wifi {
     </MSM>
 </WLANProfile>
 '@ -f $NetworkSSID, $NetworkPassword, $Authentication, $Encryption
+        
     
-
     # Create the XML file locally
     $random = Get-Random -Minimum 1111 -Maximum 99999999
     $tempProfileXML = "$env:TEMP\tempProfile$random.xml"
@@ -781,4 +783,24 @@ Function Install-Program{
     Else{
         Start-Process msiexec.exe -ArgumentList "/i $DownloadFile /qn /passive /norestart" -wait
     }
+}
+
+Function Install-Netextender{
+
+    Param(
+    $IPAddress,
+    $Domain
+    )
+
+    Write-Host "Netextender is not installed. Downloading latest version..."
+    mkdir  C:\Netextender-temp
+    Set-Location C:\Netextender-temp
+    Invoke-WebRequest "https://software.sonicwall.com/NetExtender/NetExtender-x64-10.3.1.msi" -OutFile C:\Netextender-temp\Netextender.msi
+    Write-Host "Netextender is downloaded. Installing..."
+    Start-Process MsiExec.exe -ArgumentList "/i NetExtender.MSI REBOOT=ReallySuppress SERVER=$IPAddress DOMAIN=$Domain /qn" -wait
+    Write-Host "Waiting 5 sec before removing temp files..."
+    Start-Sleep -Seconds 5
+    Set-Location ..
+    Remove-Item -Force -Recurse C:\Netextender-temp
+
 }
