@@ -51,7 +51,7 @@ Function Update-Windows{
     # Install PSWindowsUpdate Module
     Install-Module PSWindowsUpdate
 
-    $WUBlocklist = "KB5036893"
+    $WUBlocklist = "KB5053598"
     if ($HideUpdates -eq "Yes"){
         foreach ($element in $WUBlocklist) {
             Hide-WindowsUpdate -KBArticleID  $element -AcceptAll
