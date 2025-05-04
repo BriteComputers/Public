@@ -1,12 +1,12 @@
 Function Set-NoSleep{
 
-Write-Host "Set Laptop not to sleep while plugged in"
-
-Powercfg /Change monitor-timeout-ac 0
-Powercfg /Change monitor-timeout-dc 10
-Powercfg /Change standby-timeout-ac 0
-Powercfg /Change standby-timeout-dc 30
-
+    Write-Host "Set Laptop not to sleep while plugged in"
+    
+    Powercfg /Change monitor-timeout-ac 0
+    Powercfg /Change monitor-timeout-dc 10
+    Powercfg /Change standby-timeout-ac 0
+    Powercfg /Change standby-timeout-dc 30
+    
 }
 Function Set-ESTTime{
 
@@ -22,75 +22,69 @@ Function Disable-FastStartup {
         REG ADD "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v HiberbootEnabled /t REG_DWORD /d "0" /f
         powercfg -h off
 }
-Function Update-Windows{
-    param
-    (
-        [ValidateSet('Yes','No')]
-        [Parameter(Mandatory=$false)]
-        [string]$HideUpdates
+function Update-Windows {
+    param (
+        [ValidateSet('Yes', 'No')]
+        [string]$HideUpdates = 'No'
     )
 
     $Folder = 'C:\IT\Update-Logs'
-    if (Test-Path -Path $Folder) {
-        "Folder Exists"
-    } else {
-        mkdir C:\IT\Update-Logs
+    if (-not (Test-Path $Folder)) {
+        New-Item -Path $Folder -ItemType Directory | Out-Null
     }
 
-    $progressPreference = 'silentlyContinue'
+    $progressPreference = 'SilentlyContinue'
 
-    # Installs NuGet with Forced
-    Get-PackageProvider -Name "nuGet" -ForceBootstrap | 
-        Select-Object -Property Name, Version | 
-        Format-Table -Autosize
-
-    # Trusts Microsofts PSGallery
+    # Ensure NuGet and PSGallery trust
+    Get-PackageProvider -Name "NuGet" -ForceBootstrap | Out-Null
     Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-    Get-PSRepository -Name 'PSGallery' | Format-List * -Force
-        
-    # Install PSWindowsUpdate Module
-    Install-Module PSWindowsUpdate
 
-    $WUBlocklist = "KB5053598"
-    if ($HideUpdates -eq "Yes"){
-        foreach ($element in $WUBlocklist) {
-            Hide-WindowsUpdate -KBArticleID  $element -AcceptAll
-            Write-Host "Hid windows update $element Temporarily"
-        }
+    # Ensure PSWindowsUpdate module is installed
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Install-Module PSWindowsUpdate -Force
     }
-    Else {
+
+    Import-Module PSWindowsUpdate -Force
+
+    if ($HideUpdates -eq "Yes") {
+        Write-Host "Hiding cumulative updates to preserve AutoLogon..."
+
+        $availableUpdates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreUserInput -AcceptAll -Verbose
+
+        foreach ($update in $availableUpdates) {
+            if ($update.Title -like "*Cumulative Update*") {
+                $kb = ($update.KBArticleIDs)[0]
+                Hide-WindowsUpdate -KBArticleID $kb -AcceptAll -Force
+                Write-Host "✔️ Hid: $($update.Title) (KB$kb)"
+            }
+        }
+    } else {
         Show-WindowsUpdate -AcceptAll
     }
 
-    Get-WindowsUpdate | Out-File C:\IT\Update-Logs\Updates_"$((Get-Date).ToString('dd-MM-yyyy_HH.mm.ss'))".txt
+    $LogPath = Join-Path $Folder ("Updates_{0}.txt" -f (Get-Date).ToString("dd-MM-yyyy_HH.mm.ss"))
+    Get-WindowsUpdate | Out-File $LogPath
 
     $Count = 0
     $Attempts = 15
-    $ProgressPreference = 'SilentlyContinue'
-    while( $true ){
-        $Error.Clear()
+
+    while ($Count -lt $Attempts) {
         $Count++
-        Write-Host "Attempt #" $Count "to update Windows"
-        try{
-
-            If($Count -lt $Attempts){
-                Install-WindowsUpdate -AcceptAll -IgnoreReboot
-                Break
-            }
-
-            Else{
-                
-                Write-Host "Updates exceeded 15 attempts"
-                Break
-            }
-        }
-
-        catch{
-            Write-Host "Error.... Retrying"
-            Start-Sleep -Seconds 1
+        Write-Host "Attempt #$Count to update Windows..."
+        try {
+            Install-WindowsUpdate -AcceptAll -IgnoreReboot
+            break
+        } catch {
+            Write-Warning "Update attempt failed... Retrying in 5 seconds"
+            Start-Sleep -Seconds 5
         }
     }
+
+    if ($Count -ge $Attempts) {
+        Write-Warning "Exceeded maximum update attempts ($Attempts)."
+    }
 }
+
 Function Set-AutoLogon {
     
     param
@@ -450,7 +444,7 @@ function Install-Agent {
     )
     $TempPath = "C:\IT\Agent"
     $DownloadPath = "$TempPath\WindowsAgentSetup.exe"
-    $AgentDownload = "https://rmm.$Domain/download/2024.6.0.19/winnt/N-central/WindowsAgentSetup.exe"
+    $AgentDownload = "https://rmm.brite.com/download/2024.6.1.27/winnt/N-central/WindowsAgentSetup.exe"
 
     if (!(Test-Path $TempPath)) {
         New-Item -ItemType "Directory" -Path $TempPath
@@ -803,4 +797,56 @@ Function Install-Netextender{
     Set-Location ..
     Remove-Item -Force -Recurse C:\Netextender-temp
 
+}
+
+Function Install-GlobalProtect{
+    param (
+        $Portal
+    )
+
+    $argsString = ""
+    If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64")
+    {
+        Try
+        {
+            foreach ($k in $MyInvocation.BoundParameters.keys)
+            {
+                switch ($MyInvocation.BoundParameters[$k].GetType().Name)
+                {
+                    "SwitchParameter" { if ($MyInvocation.BoundParameters[$k].IsPresent) { $argsString += "-$k " } }
+                    "String"          { $argsString += "-$k `"$($MyInvocation.BoundParameters[$k])`" " }
+                    "Int32"           { $argsString += "-$k $($MyInvocation.BoundParameters[$k]) " }
+                    "Boolean"         { $argsString += "-$k `$$($MyInvocation.BoundParameters[$k]) " }
+                }
+            }
+            Start-Process -FilePath "$ENV:WINDIR\SysNative\WindowsPowershell\v1.0\PowerShell.exe" -ArgumentList "-File `"$($PSScriptRoot)\Install-GlobalProtect.ps1`" $($argsString)" -Wait -NoNewWindow
+        }
+        Catch
+        {
+            Throw "Failed to start 64-bit PowerShell"
+        }
+        Exit
+    }
+
+    $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\GlobalProtectInstall.log"
+
+    Start-Transcript -path $LogPath -Force -Append
+
+    $DowloadURL = "https://$Portal/global-protect/msi/GlobalProtect64.msi"
+    $TempPath = "C:\IT\Apps\GlobalProtect"
+    $DownloadFile = "$TempPath\GlobalProtect-Installer.msi"
+
+    if (!(Test-Path $TempPath)) {
+        New-Item -ItemType "Directory" -Path $TempPath
+    }
+
+    Write-Host "GlobalProtect is not installed. Downloading latest version..."
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $DowloadURL -OutFile $DownloadFile
+    Write-Host "Installing GlobalProtect"
+    Start-Process msiexec.exe -ArgumentList "/i $DownloadFile  /qn /norestart PORTAL=$Portal" -wait
+
+    #CANCONTINUEIFPORTALCERTINVALID=”yes”
+
+    Stop-transcript
 }
