@@ -1,3 +1,100 @@
+function Convert-AESPasswordToDPAPI {
+    param (
+        [string]$ConfigPath = "C:\IT\PPKG\config.json",
+        [string]$KeyPath = "C:\IT\\PPKG\key.bin"
+    )
+
+    if (-not (Test-Path $ConfigPath)) {
+        Write-Error "❌ Config file not found at $ConfigPath"
+        return
+    }
+
+    if (-not (Test-Path $KeyPath)) {
+        Write-Error "❌ AES key file not found at $KeyPath"
+        return
+    }
+
+    try {
+        # Load config
+        $Config = Get-Content $ConfigPath | ConvertFrom-Json
+
+        # Load AES key
+        $Key = [IO.File]::ReadAllBytes($KeyPath)
+
+        # Decrypt password from AES to SecureString
+        $SecurePassword = $Config.Password | ConvertTo-SecureString -Key $Key
+
+        # Re-encrypt using DPAPI (current user context)
+        $DPAPIEncrypted = $SecurePassword | ConvertFrom-SecureString
+
+        # Replace in config and save
+        $Config.Password = $DPAPIEncrypted
+        $Config | ConvertTo-Json -Depth 3 | Set-Content $ConfigPath
+
+        # Delete key file
+        Remove-Item $KeyPath -Force
+
+        Write-Host "🔐 Password decrypted using AES and re-saved with DPAPI. key.bin removed."
+    }
+    catch {
+        Write-Error "❌ Error during conversion: $_"
+    }
+}
+
+function Copy-ConfigFromUSB {
+    param (
+        [string]$VolumeLabel,
+        [string]$FileName = "config.json",
+        [string]$TargetPath = "C:\IT\PPKG"
+    )
+
+    Write-Host "🔍 Searching for USB drive..."
+
+    $usbDrive = $null
+
+    if ($VolumeLabel) {
+        # Look for drive with matching volume label
+        Write-Host "🔍 Looking for volume with label '$VolumeLabel'..."
+        $usbDrive = Get-Volume | Where-Object {
+            $_.FileSystemLabel -eq $VolumeLabel -and $_.DriveLetter
+        } | Select-Object -First 1
+    } else {
+        # Look for any drive that contains config.json
+        Write-Host "🔍 Looking for any drive with '$FileName'..."
+        $usbDrive = Get-Volume | Where-Object {
+            $_.DriveLetter -and (Test-Path ("$($_.DriveLetter):\$FileName"))
+        } | Select-Object -First 1
+    }
+
+    if (-not $usbDrive) {
+        Write-Error "❌ No suitable USB drive found."
+        return $false
+    }
+
+    $sourcePath = "$($usbDrive.DriveLetter):\$FileName"
+    $destPath = Join-Path -Path $TargetPath -ChildPath $FileName
+
+    if (-not (Test-Path $sourcePath)) {
+        Write-Error "❌ $FileName not found on USB drive $($usbDrive.DriveLetter):"
+        return $false
+    }
+
+    if (-not (Test-Path $TargetPath)) {
+        Write-Host "📁 Creating target folder: $TargetPath"
+        New-Item -Path $TargetPath -ItemType Directory | Out-Null
+    }
+
+    try {
+        Copy-Item -Path $sourcePath -Destination $destPath -Force
+        Write-Host "✅ Copied $FileName from USB to $TargetPath"
+        return $true
+    } catch {
+        Write-Error "❌ Failed to copy $FileName: $_"
+        return $false
+    }
+}
+
+
 Function Set-NoSleep{
 
     Write-Host "Set Laptop not to sleep while plugged in"
@@ -85,29 +182,37 @@ function Update-Windows {
     }
 }
 
-Function Set-AutoLogon {
-    
-    param
-    (
-        [Parameter(Mandatory=$true)]
+function Set-AutoLogon {
+    param (
+        [Parameter(Mandatory = $true)]
         [string]$Username,
-        [Parameter(Mandatory=$true)]
-        [string]$Password
+
+        [Parameter(Mandatory = $true)]
+        [SecureString]$Password
     )
-    
-    #$Password = $Password | ConvertTo-SecureString -asPlainText -Force
+
     Write-Host "Set autologon"
-    #Registry path declaration
+
+    # Convert SecureString to plain text safely in memory
+    $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+    )
+
+    # Registry path
     $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    [String]$DefaultUsername = $Username
-    [String]$DefaultPassword = $Password
-    #setting registry values
-    Set-ItemProperty $RegPath "AutoAdminLogon" -Value "1" -type String
-    Set-ItemProperty $RegPath "DefaultUsername" -Value $DefaultUsername -type String
-    Set-ItemProperty $RegPath "DefaultPassword" -Value $DefaultPassword -type String
-    Set-ItemProperty $RegPath "AutoLogonCount" -Value "1" -type DWord
+
+    # Set registry values
+    Set-ItemProperty $RegPath "AutoAdminLogon" -Value "1" -Type String
+    Set-ItemProperty $RegPath "DefaultUsername" -Value $Username -Type String
+    Set-ItemProperty $RegPath "DefaultPassword" -Value $PlainPassword -Type String
+    Set-ItemProperty $RegPath "AutoLogonCount" -Value "1" -Type DWord
+
+    $PlainPassword = $null
+    [System.GC]::Collect()
+
     Write-Host "End of Set autologon"
 }
+
 Function Join-Domain {
         param
     (
@@ -867,22 +972,10 @@ function New-LocalAdminAccount {
         [string]$Username,
 
         [Parameter(Mandatory = $false)]
-        [string]$Password,
-
-        [Parameter(Mandatory = $false)]
         [SecureString]$SecurePassword
     )
 
     Write-Host "`n👤 Creating local admin account '$Username'..."
-
-    if (-not $Password -and -not $SecurePassword) {
-        throw "❌ You must provide either -Password or -SecurePassword."
-    }
-
-    # If plain text password is given, convert to SecureString
-    if ($Password) {
-        $SecurePassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
-    }
 
     # Check if account already exists
     if (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue) {
