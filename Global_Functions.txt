@@ -149,10 +149,10 @@ function Update-Windows {
         $availableUpdates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreUserInput -AcceptAll -Verbose
 
         foreach ($update in $availableUpdates) {
-            if ($update.Title -like "*Cumulative Update*") {
+            if ($update.Title -like "*Cumulative Update for Windows*") {
                 $kb = ($update.KBArticleIDs)[0]
-                Hide-WindowsUpdate -KBArticleID $kb -AcceptAll -Force
-                Write-Host "✔️ Hid: $($update.Title) (KB$kb)"
+                Hide-WindowsUpdate -KBArticleID $kb -AcceptAll
+                Write-Host "Hid: $($update.Title) (KB$kb)"
             }
         }
     } else {
