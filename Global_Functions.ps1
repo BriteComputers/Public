@@ -130,6 +130,13 @@ function Update-Windows {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
 
+    Get-PackageProvider -Name "NuGet" -ForceBootstrap | Out-Null
+    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Install-Module PSWindowsUpdate -Force
+    }
+    
     # Ensure update service and Microsoft Update source are ready
     try {
         Set-Service -Name wuauserv -StartupType Manual -ErrorAction SilentlyContinue
