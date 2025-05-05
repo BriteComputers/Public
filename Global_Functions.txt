@@ -1,7 +1,7 @@
 function Convert-AESPasswordToDPAPI {
     param (
         [string]$ConfigPath = "C:\IT\PPKG\config.json",
-        [string]$KeyPath = "C:\IT\\PPKG\key.bin"
+        [string]$KeyPath = "C:\IT\PPKG\key.bin"
     )
 
     if (-not (Test-Path $ConfigPath)) {
