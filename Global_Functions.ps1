@@ -850,3 +850,55 @@ Function Install-GlobalProtect{
 
     Stop-transcript
 }
+
+Function Load-Config {
+    param (
+        [string]$Path = "C:\IT\config.json"
+    )
+    if (-Not (Test-Path $Path)) {
+        throw "Config file not found at $Path"
+    }
+    return Get-Content $Path -Raw | ConvertFrom-Json
+}
+
+function New-LocalAdminAccount {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Username,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Password,
+
+        [Parameter(Mandatory = $false)]
+        [SecureString]$SecurePassword
+    )
+
+    Write-Host "`n👤 Creating local admin account '$Username'..."
+
+    if (-not $Password -and -not $SecurePassword) {
+        throw "❌ You must provide either -Password or -SecurePassword."
+    }
+
+    # If plain text password is given, convert to SecureString
+    if ($Password) {
+        $SecurePassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
+    }
+
+    # Check if account already exists
+    if (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue) {
+        Write-Warning "⚠️ Account '$Username' already exists. Skipping creation."
+        return
+    }
+
+    try {
+        # Create the local user
+        New-LocalUser -Name $Username -Password $SecurePassword -FullName $Username -Description "Provisioned Admin Account" -PasswordNeverExpires -UserMayNotChangePassword
+
+        # Add to Administrators group
+        Add-LocalGroupMember -Group "Administrators" -Member $Username
+
+        Write-Host "✅ Local admin account '$Username' created successfully."
+    } catch {
+        Write-Error "❌ Failed to create account: $_"
+    }
+}
