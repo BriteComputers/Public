@@ -135,8 +135,8 @@ function Update-Windows {
 
     if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
         Install-Module PSWindowsUpdate -Force
-        Import-Module PSWindowsUpdate -Force
     }
+    Import-Module PSWindowsUpdate -Force
 
     # Ensure update service and Microsoft Update source are ready
     try {
