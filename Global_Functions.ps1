@@ -54,20 +54,20 @@ function Copy-ConfigFromUSB {
 
     if ($VolumeLabel) {
         # Look for drive with matching volume label
-        Write-Host "🔍 Looking for volume with label '$VolumeLabel'..."
+        Write-Host "Looking for volume with label '$VolumeLabel'..."
         $usbDrive = Get-Volume | Where-Object {
             $_.FileSystemLabel -eq $VolumeLabel -and $_.DriveLetter
         } | Select-Object -First 1
     } else {
         # Look for any drive that contains config.json
-        Write-Host "🔍 Looking for any drive with '$FileName'..."
+        Write-Host "Looking for any drive with '$FileName'..."
         $usbDrive = Get-Volume | Where-Object {
             $_.DriveLetter -and (Test-Path ("$($_.DriveLetter):\$FileName"))
         } | Select-Object -First 1
     }
 
     if (-not $usbDrive) {
-        Write-Error "❌ No suitable USB drive found."
+        Write-Error "No suitable USB drive found."
         return $false
     }
 
@@ -75,21 +75,21 @@ function Copy-ConfigFromUSB {
     $destPath = Join-Path -Path $TargetPath -ChildPath $FileName
 
     if (-not (Test-Path $sourcePath)) {
-        Write-Error "❌ $FileName not found on USB drive $($usbDrive.DriveLetter):"
+        Write-Error "$FileName not found on USB drive $($usbDrive.DriveLetter):"
         return $false
     }
 
     if (-not (Test-Path $TargetPath)) {
-        Write-Host "📁 Creating target folder: $TargetPath"
+        Write-Host "Creating target folder: $TargetPath"
         New-Item -Path $TargetPath -ItemType Directory | Out-Null
     }
 
     try {
         Copy-Item -Path $sourcePath -Destination $destPath -Force
-        Write-Host "✅ Copied $FileName from USB to $TargetPath"
+        Write-Host "Copied $FileName from USB to $TargetPath"
         return $true
     } catch {
-        Write-Error "❌ Failed to copy $FileName: $_"
+        Write-Error "Failed to copy $($FileName): $_"
         return $false
     }
 }
