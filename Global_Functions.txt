@@ -5,12 +5,12 @@ function Convert-AESPasswordToDPAPI {
     )
 
     if (-not (Test-Path $ConfigPath)) {
-        Write-Error "❌ Config file not found at $ConfigPath"
+        Write-Error "Config file not found at $ConfigPath"
         return
     }
 
     if (-not (Test-Path $KeyPath)) {
-        Write-Error "❌ AES key file not found at $KeyPath"
+        Write-Error "AES key file not found at $KeyPath"
         return
     }
 
@@ -958,7 +958,7 @@ Function Install-GlobalProtect{
 
 Function Load-Config {
     param (
-        [string]$Path = "C:\IT\config.json"
+        [string]$Path = "C:\IT\PPKG\config.json"
     )
     if (-Not (Test-Path $Path)) {
         throw "Config file not found at $Path"
