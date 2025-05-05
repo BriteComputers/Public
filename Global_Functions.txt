@@ -151,6 +151,8 @@ function Update-Windows {
         Write-Warning "Could not initialize Windows Update service or source: $_"
     }
 
+    $progressPreference = 'SilentlyContinue'
+
     # Get available updates
     try {
         $availableUpdates = Get-WindowsUpdate -AcceptAll -IgnoreUserInput -MicrosoftUpdate -Verbose
