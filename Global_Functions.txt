@@ -121,70 +121,74 @@ Function Disable-FastStartup {
 }
 function Update-Windows {
     param (
-        [ValidateSet('Yes', 'No')]
-        [string]$HideUpdates = 'No'
+        [ValidateSet('Yes','No')]
+        [string]$HideCumulativeUpdates = "No"
     )
 
-    $Folder = 'C:\IT\Update-Logs'
-    if (-not (Test-Path $Folder)) {
-        New-Item -Path $Folder -ItemType Directory | Out-Null
+    $logDir = "C:\IT\Update-Logs"
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
 
-    $progressPreference = 'SilentlyContinue'
+    # Ensure update service and Microsoft Update source are ready
+    try {
+        Set-Service -Name wuauserv -StartupType Manual -ErrorAction SilentlyContinue
+        Start-Service -Name wuauserv -ErrorAction SilentlyContinue
 
-    # Ensure NuGet and PSGallery trust
-    Get-PackageProvider -Name "NuGet" -ForceBootstrap | Out-Null
-    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-
-    # Ensure PSWindowsUpdate module is installed
-    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-        Install-Module PSWindowsUpdate -Force
+        if (-not (Get-WUServiceManager | Where-Object ServiceID -eq "7971f918-a847-4430-9279-4a52d1efe18d")) {
+            Add-WUServiceManager -MicrosoftUpdate -Confirm:$false | Out-Null
+            Write-Host "Registered Microsoft Update service source."
+        }
+    } catch {
+        Write-Warning "Could not initialize Windows Update service or source: $_"
     }
 
-    Import-Module PSWindowsUpdate -Force
-
-    if (-not (Get-WUServiceManager | Where-Object ServiceID -eq "7971f918-a847-4430-9279-4a52d1efe18d")) {
-        Add-WUServiceManager -MicrosoftUpdate
+    # Get available updates
+    try {
+        $availableUpdates = Get-WindowsUpdate -AcceptAll -IgnoreUserInput -MicrosoftUpdate -Verbose
+    } catch {
+        Write-Error "Failed to retrieve available updates: $_"
+        return
     }
 
-    if ($HideUpdates -eq "Yes") {
-        Write-Host "Hiding cumulative updates to preserve AutoLogon..."
-
-        $availableUpdates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreUserInput -AcceptAll -Verbose
-
+    # Optionally hide cumulative updates
+    if ($HideCumulativeUpdates -eq "Yes") {
         foreach ($update in $availableUpdates) {
-            if ($update.Title -like "*Cumulative Update for Windows*") {
+            if ($update.Title -like "*Cumulative Update*") {
                 $kb = ($update.KBArticleIDs)[0]
-                Hide-WindowsUpdate -KBArticleID $kb -AcceptAll
-                Write-Host "Hid: $($update.Title) (KB$kb)"
+                try {
+                    Hide-WindowsUpdate -KBArticleID $kb -AcceptAll -Force
+                    Write-Host "Hid cumulative update: $($update.Title) (KB$kb)"
+                } catch {
+                    Write-Warning "Failed to hide $($kb): $_"
+                }
             }
         }
-    } else {
-        Show-WindowsUpdate -AcceptAll
+
+        # Refresh update list after hiding
+        $availableUpdates = Get-WindowsUpdate -AcceptAll -IgnoreUserInput -MicrosoftUpdate
     }
 
-    $LogPath = Join-Path $Folder ("Updates_{0}.txt" -f (Get-Date).ToString("dd-MM-yyyy_HH.mm.ss"))
-    Get-WindowsUpdate | Out-File $LogPath
+    # Format and log update info before install
+    $formattedUpdates = $availableUpdates | Format-Table `
+        @{Label="Status"; Expression={$_.Status}}, `
+        @{Label="KB"; Expression={ ($_.KBArticleIDs -join ",") }}, `
+        @{Label="SizeMB"; Expression={ "{0:N0}" -f ($_.MaxDownloadSize / 1MB) }}, `
+        @{Label="Title"; Expression={$_.Title}} -AutoSize | Out-String
 
-    $Count = 0
-    $Attempts = 15
+    $logPath = "$logDir\Updates_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').txt"
+    $formattedUpdates | Set-Content -Path $logPath
 
-    while ($Count -lt $Attempts) {
-        $Count++
-        Write-Host "Attempt #$Count to update Windows..."
-        try {
-            Install-WindowsUpdate -AcceptAll -IgnoreReboot | Format-Table Title, Status, KBArticleIDs -AutoSize
-            break
-        } catch {
-            Write-Warning "Update attempt failed... Retrying in 5 seconds"
-            Start-Sleep -Seconds 5
-        }
+    # Install updates
+    try {
+        $availableUpdates | Install-WindowsUpdate -AcceptAll -IgnoreReboot -Verbose
+    } catch {
+        Write-Error "Update installation failed: $_"
     }
 
-    if ($Count -ge $Attempts) {
-        Write-Warning "Exceeded maximum update attempts ($Attempts)."
-    }
+    Write-Host "Windows Update process complete. Log saved to $logPath"
 }
+
 
 function Set-AutoLogon {
     param (
@@ -979,11 +983,11 @@ function New-LocalAdminAccount {
         [SecureString]$SecurePassword
     )
 
-    Write-Host "`n👤 Creating local admin account '$Username'..."
+    Write-Host "`nCreating local admin account '$Username'..."
 
     # Check if account already exists
     if (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue) {
-        Write-Warning "⚠️ Account '$Username' already exists. Skipping creation."
+        Write-Warning "Account '$Username' already exists. Skipping creation."
         return
     }
 
@@ -994,8 +998,8 @@ function New-LocalAdminAccount {
         # Add to Administrators group
         Add-LocalGroupMember -Group "Administrators" -Member $Username
 
-        Write-Host "✅ Local admin account '$Username' created successfully."
+        Write-Host "Local admin account '$Username' created successfully."
     } catch {
-        Write-Error "❌ Failed to create account: $_"
+        Write-Error "Failed to create account: $_"
     }
 }
