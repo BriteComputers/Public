@@ -143,6 +143,10 @@ function Update-Windows {
 
     Import-Module PSWindowsUpdate -Force
 
+    if (-not (Get-WUServiceManager | Where-Object ServiceID -eq "7971f918-a847-4430-9279-4a52d1efe18d")) {
+        Add-WUServiceManager -MicrosoftUpdate
+    }
+
     if ($HideUpdates -eq "Yes") {
         Write-Host "Hiding cumulative updates to preserve AutoLogon..."
 
