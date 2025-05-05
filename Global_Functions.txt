@@ -173,7 +173,7 @@ function Update-Windows {
         $Count++
         Write-Host "Attempt #$Count to update Windows..."
         try {
-            Install-WindowsUpdate -AcceptAll -IgnoreReboot
+            Install-WindowsUpdate -AcceptAll -IgnoreReboot | Format-Table Title, Status, KBArticleIDs -AutoSize
             break
         } catch {
             Write-Warning "Update attempt failed... Retrying in 5 seconds"
