@@ -165,7 +165,7 @@ function Update-Windows {
             if ($update.Title -like "*Cumulative Update*") {
                 $kb = ($update.KBArticleIDs)[0]
                 try {
-                    Hide-WindowsUpdate -KBArticleID $kb -AcceptAll -Force
+                    Hide-WindowsUpdate -KBArticleID $kb -AcceptAll
                     Write-Host "Hid cumulative update: $($update.Title) (KB$kb)"
                 } catch {
                     Write-Warning "Failed to hide $($kb): $_"
