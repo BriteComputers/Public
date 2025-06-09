@@ -164,7 +164,7 @@ function Update-Windows {
     # Optionally hide cumulative updates
     if ($HideCumulativeUpdates -eq "Yes") {
         foreach ($update in $availableUpdates) {
-            if ($update.Title -like "*Cumulative Update for Windows*") {
+            if ($update.Title -like "*Cumulative Update*") {
                 $kb = ($update.KBArticleIDs)[0]
                 try {
                     Hide-WindowsUpdate -KBArticleID $kb -AcceptAll
