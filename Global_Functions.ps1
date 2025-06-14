@@ -332,6 +332,21 @@ Function Install-Apps{
             Install-7Zip
         }
         "374" {
+            
+        }
+        "455"{
+            Install-Bluebeam
+            #Install-Citrix
+            Install-AnyVideoConverter
+            Install-ShareFile
+            Install-ShareFilePlugin
+            #VLC Install
+            Winget install XPDM1ZW6815MQM
+            Install-DWGTrueview
+            #Install-GoToResolve
+            #Install-VSOImageResizer..... maybe
+            #Install-eScreenz
+            #Install-Navisworks
         }
 
         default {
@@ -1012,4 +1027,236 @@ function New-LocalAdminAccount {
     } catch {
         Write-Error "❌ Failed to create account: $_"
     }
+}
+
+function Install-Bluebeam {
+    $LogPath = "C:\ProgramData\Deployment\Logs\BlueBeamInstall.log"
+    $DownloadPath = "https://www.bluebeam.com/MSIdeployx64"
+    $TempPath = "C:\IT\Apps\BlueBeam"
+    $DownloadFile = Join-Path -Path $TempPath -ChildPath "BlueBeam-Installer.zip"
+    $OCRFile = Join-Path -Path $TempPath -ChildPath "BluebeamOCR x64 21.msi"
+    $BBMSI = Join-Path -Path $TempPath -ChildPath "Bluebeam Revu x64 21.msi"
+
+    # Ensure the log directory exists
+    $LogDirectory = Split-Path -Path $LogPath -Parent
+    if (-not (Test-Path $LogDirectory)) {
+            New-Item -Path $LogDirectory -ItemType Directory -Force | Out-Null
+    }
+
+    # Start logging
+    Write-Log "Starting BlueBeam installation process."
+
+    # Ensure the temporary directory exists
+    Write-Log "Creating temporary directory ${TempPath} if it does not exist."
+    if (-not (Test-Path $TempPath)) {
+        try {
+            New-Item -Path $TempPath -ItemType Directory -Force | Out-Null
+            Write-Log "Temporary directory ${TempPath} created successfully."
+        } catch {
+            $errorMessage = $_.Exception.Message
+            Write-Log "Failed to create temporary directory ${TempPath}: $errorMessage" -Type "ERROR"
+            throw
+        }
+    }
+
+    # Download BlueBeam installer
+    Write-Log "Downloading BlueBeam installer from $DownloadPath."
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        Invoke-WebRequest -Uri $DownloadPath -OutFile $DownloadFile
+        Write-Log "BlueBeam installer downloaded successfully to ${DownloadFile}."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to download BlueBeam installer: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    # Extract the installer
+    Write-Log "Extracting BlueBeam installer from ${DownloadFile}."
+    try {
+        Expand-Archive -Path $DownloadFile -DestinationPath $TempPath -Force
+        Write-Log "BlueBeam installer extracted successfully to ${TempPath}."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to extract BlueBeam installer: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    # Rename installer files
+    Write-Log "Renaming installer files."
+    try {
+        Rename-Item -Path $OCRFile -NewName "BluebeamOCR-Installer.msi"
+        Rename-Item -Path $BBMSI -NewName "Bluebeam-Installer.msi"
+        Write-Log "Installer files renamed successfully."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to rename installer files: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    # Install BlueBeam OCR
+    Write-Log "Installing BlueBeam OCR from ${TempPath}\BluebeamOCR-Installer.msi."
+    try {
+        Start-Process msiexec.exe -ArgumentList "/i $TempPath\BluebeamOCR-Installer.msi /qn /passive /norestart" -Wait
+        Write-Log "BlueBeam OCR installed successfully."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to install BlueBeam OCR: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    # Install BlueBeam Revu
+    Write-Log "Installing BlueBeam Revu from ${TempPath}\Bluebeam-Installer.msi."
+    try {
+        Start-Process msiexec.exe -ArgumentList "/i $TempPath\Bluebeam-Installer.msi /qn /passive /norestart DISABLE_WELCOME=1" -Wait
+        Write-Log "BlueBeam Revu installed successfully."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to install BlueBeam Revu: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    # Clean up temporary files
+    Write-Log "Cleaning up temporary files in ${TempPath}."
+    try {
+        Remove-Item -Path $TempPath -Recurse -Force
+        Write-Log "Temporary files removed successfully."
+    } catch {
+        $errorMessage = $_.Exception.Message
+        Write-Log "Failed to remove temporary files: $errorMessage" -Type "ERROR"
+        throw
+    }
+
+    Write-Log "BlueBeam installation process completed."
+}
+
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Type = "INFO"
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Type] $Message"
+    Write-Output $logEntry | Out-File -FilePath $LogPath -Append -Encoding UTF8
+}
+
+function Install-AnyVideoConverter {
+
+    $LogPath = "C:\ProgramData\Deployment\Logs\AVCDeployment.log"
+    $DownloadURL = "https://www.any-video-converter.com/avc-free.exe"
+    $DownloadPath = "C:\ProgramData\Deployment\Apps\AVC"
+    $InstallerFile = Join-Path -Path $DownloadPath -ChildPath "AVC-Installer.exe"
+
+    # Ensure the log directory exists
+    $LogDirectory = Split-Path -Path $LogPath -Parent
+    if (-not (Test-Path $LogDirectory)) {
+        New-Item -Path $LogDirectory -ItemType Directory -Force | Out-Null
+    }
+
+    # Start logging
+    Write-Log "Starting AVC installation process."
+
+    Write-Log "Creating directory ${DownloadPath} if it does not exist."
+    if (-not (Test-Path $DownloadPath)) {
+        try {
+            New-Item -Path $DownloadPath -ItemType Directory -Force | Out-Null
+            Write-Log "Directory ${DownloadPath} created successfully."
+        } catch {
+            $ErrorMessage = $_.Exception.Message
+            Write-Log "Failed to create directory ${DownloadPath}: $ErrorMessage" -Type "ERROR"
+            throw
+        }
+    }
+
+    Write-Log "Downloading AVC from $DownloadURL"
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        Invoke-WebRequest -Uri $DownloadURL -OutFile $InstallerFile
+        Write-Log "AVC downloaded successfully to ${InstallerFile}."
+    } catch {
+        $ErrorMessage = $_.Exception.Message
+        Write-Log "Failed to download AVC: $ErrorMessage" -Type "ERROR"
+        throw
+    }
+
+    Write-Log "Installing AVC from ${InstallerFile}"
+    try {
+        Start-Process $InstallerFile -ArgumentList "-s" -Wait
+        Write-Log "AVC installed successfully."
+    } catch {
+        $ErrorMessage = $_.Exception.Message
+        Write-Log "Failed to install AVC: $ErrorMessage" -Type "ERROR"
+        throw
+    }
+
+    Write-Log "AVC installation process completed."
+    
+}
+
+function Install-ShareFile {
+    $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\ShareFileInstall.log"
+
+    Start-Transcript -path $LogPath -Force -Append
+
+    $DowloadURL = "https://dl.sharefile.com/sfwin-msi"
+    $TempPath = "C:\IT\Apps\ShareFile"
+    $DownloadFile = "$TempPath\ShareFile-Installer.msi"
+
+    if (!(Test-Path $TempPath)) {
+        New-Item -ItemType "Directory" -Path $TempPath
+    }
+
+    Write-Host "ShareFile is not installed. Downloading latest version..."
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $DowloadURL -OutFile $DownloadFile
+    Write-Host "Installing ShareFile"
+    Start-Process msiexec.exe -ArgumentList "/i $DownloadFile /qn" -wait
+
+    Stop-transcript
+}
+
+function Install-ShareFilePlugin {
+    $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\SharefilePluginInstall.log"
+
+    Start-Transcript -path $LogPath -Force -Append
+
+    $DowloadURL = "https://dl.sharefile.com/sfo-msi"
+    $TempPath = "C:\IT\Apps\SharefilePlugin"
+    $DownloadFile = "$TempPath\SharefilePlugin-Installer.msi"
+
+    if (!(Test-Path $TempPath)) {
+        New-Item -ItemType "Directory" -Path $TempPath
+    }
+
+    Write-Host "SharefilePlugin is not installed. Downloading latest version..."
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $DowloadURL -OutFile $DownloadFile
+    Write-Host "Installing SharefilePlugin"
+    Start-Process msiexec.exe -ArgumentList "/i $DownloadFile /qn" -wait
+
+    Stop-transcript
+}
+
+function Install-DWGTrueview {
+    $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\DWGTrueViewInstall.log"
+    $DowloadPath = "https://efulfillment.autodesk.com/NetSWDLD/2024/ACD/9C02048D-D0DB-3E06-B903-89BD24380AAD/SFX/DWGTrueView_2024_English_64bit_dlm.sfx.exe"
+    $TempPath = "C:\DWGTrueView-Temp"
+    $DownloadFile = "DWGTrueView-Installer.exe"
+    $DownloadPath = "$TempPath\$DownloadFile"
+
+    Start-Transcript -path $LogPath -Force -Append
+
+    Write-Host "DWGTrueView is not installed. Downloading latest version..."
+    mkdir  $TempPath
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $DowloadPath -OutFile $DownloadPath
+    Write-Host "Chrome is downloaded. Installing..."
+    Start-Process $DownloadPath -ArgumentList "-suppresslaunch -d C:\Autodesk" -wait
+    Start-Sleep -Seconds 5
+    Write-Host "Files Extracted, Running Installer..."
+    Start-Process "C:\Autodesk\DWGTrueView_2024_English_64bit_dlm\Setup.exe" -ArgumentList "--silent" -wait
+    Start-Sleep -Seconds 5
+    Remove-Item $TempPath -Force -Recurse
+
+    Stop-transcript
 }
