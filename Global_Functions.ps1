@@ -34,10 +34,10 @@ function Convert-AESPasswordToDPAPI {
         # Delete key file
         Remove-Item $KeyPath -Force
 
-        Write-Host "🔐 Password decrypted using AES and re-saved with DPAPI. key.bin removed."
+        Write-Host "Password decrypted using AES and re-saved with DPAPI. key.bin removed."
     }
     catch {
-        Write-Error "❌ Error during conversion: $_"
+        Write-Error "Error during conversion: $_"
     }
 }
 
