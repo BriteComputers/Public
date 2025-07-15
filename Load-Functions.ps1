@@ -7,6 +7,8 @@ $tempZip = "$env:TEMP\$ModuleName.zip"
 $tempExtractPath = "$env:TEMP\$ModuleName-Extract"
 $psd1Path = "C:\Program Files\WindowsPowerShell\Modules\BriteProvisioning\BriteProvisioning.psd1"
 
+Set-executionPolicy Bypass -Scope Process -Force
+
 if (Test-Path $psd1Path) {
     $manifest = Import-PowerShellDataFile -Path $psd1Path
     $Localversion = $manifest.ModuleVersion
@@ -62,3 +64,5 @@ $Version = (Get-Module -Name $moduleName).Version
 if ($remoteVersion -gt $Version) {
     Import-Module $moduleName -Force
 }
+
+Set-executionPolicy -Scope Process -ExecutionPolicy Restricted -Force
